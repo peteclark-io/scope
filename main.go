@@ -31,13 +31,14 @@ func main() {
 			return err
 		}
 
-		search := c.Args().Get(0)
-		if strings.TrimSpace(search) == "" {
+		search := c.Args()
+		if len(search) == 0 || strings.TrimSpace(search[0]) == "" {
 			output(paths)
 			return nil
 		}
 
-		rex := regexp.MustCompile(`.*` + search + `.*`)
+		rex := generateRegex(search)
+
 		for _, path := range paths {
 			if rex.MatchString(path) {
 				res, err := client.Logical().Read(path)
@@ -56,6 +57,15 @@ func main() {
 	}
 
 	app.Run(os.Args)
+}
+
+func generateRegex(searchTerms []string) *regexp.Regexp {
+	regex := ""
+	for _, term := range searchTerms {
+		regex += `.*` + term + `.*`
+	}
+
+	return regexp.MustCompile(regex)
 }
 
 func setToken(client *api.Client) error {

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -13,14 +14,18 @@ import (
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "vault-cli"
-	app.Usage = ""
+	app.Name = "scope"
+	app.Usage = "Scopes out vault keys and reads the first match"
 
 	app.Action = func(c *cli.Context) error {
 		conf := api.DefaultConfig()
 		client, _ := api.NewClient(conf)
 
-		client.SetToken("64f37837-261b-7333-9b0b-35c2cc3e7e17")
+		err := setToken(client)
+		if err != nil {
+			return err
+		}
+
 		paths, err := unroll("secret/", client)
 		if err != nil {
 			return err
@@ -28,7 +33,8 @@ func main() {
 
 		search := c.Args().Get(0)
 		if strings.TrimSpace(search) == "" {
-			return errors.New("Please provide a search term")
+			output(paths)
+			return nil
 		}
 
 		rex := regexp.MustCompile(`.*` + search + `.*`)
@@ -41,14 +47,29 @@ func main() {
 
 				data := res.Data
 				data["path"] = path
+				output(data)
 
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				enc.Encode(data)
+				return nil // only output the first match
 			}
 		}
 		return nil
 	}
 
 	app.Run(os.Args)
+}
+
+func setToken(client *api.Client) error {
+	token, err := ioutil.ReadFile(os.Getenv("HOME") + "/.scope/auth.token")
+	if err != nil {
+		return errors.New("Please provide a token file at ~/.scope/auth.token")
+	}
+
+	client.SetToken(strings.TrimSpace(string(token)))
+	return nil
+}
+
+func output(data interface{}) {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	enc.Encode(data)
 }
